@@ -82,6 +82,18 @@ Your final document must include:
 - Open Questions — genuinely open, NOT action items, NOT "next steps," NOT rhetorical questions that imply their own answers
 - Sources: `[[wikilinks]]` for vault references, URLs for web sources with footnotes
 
+### Plain Mode
+
+If the orchestrator's prompt to you includes `--plain` (or "plain mode"), produce CommonMark-compatible output instead of Obsidian-flavored:
+
+- Replace `[[Note name]]` wikilinks with standard `[Note name](relative/path.md)` markdown links for known paths, or with plain prose mentions ("the note on X") when no path is available.
+- Replace the `> [!note]- Process Log` callout with a top-level `## Process Log` section. Same content, just no callout syntax.
+- Replace the `> [!abstract] Central Question` callout with a top-level `## Central Question` section.
+- Keep YAML frontmatter and standard footnotes (`[^1]`) — both are CommonMark and work in plain markdown.
+- Do not produce any other Obsidian-specific syntax: no `> [!info]`, no `> [!warning]`, no embedded queries, no transclusions.
+
+Plain mode is for forks targeting Logseq, Foam, plain GitHub-flavored markdown, or any environment that doesn't render Obsidian extensions. The information content is identical; only the formatting differs.
+
 ## Output Format
 
 ### Mid-Brainstorm (Round 1-2)

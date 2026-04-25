@@ -1,0 +1,42 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v17
+        with:
+          globs: "**/*.md"
+
+  frontmatter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify SKILL.md frontmatter
+        run: |
+          set -e
+          required=(name description allowed-tools)
+          for field in "${required[@]}"; do
+            if ! grep -q "^${field}:" SKILL.md; then
+              echo "::error file=SKILL.md::Missing required field: ${field}"
+              exit 1
+            fi
+          done
+          echo "SKILL.md frontmatter: required fields present."
+      - name: Verify agent files have no frontmatter
+        run: |
+          set -e
+          for f in agents/*.md; do
+            if head -n 1 "$f" | grep -q "^---$"; then
+              echo "::error file=$f::Agent files are prompt templates and must not have YAML frontmatter (see README architecture note)."
+              exit 1
+            fi
+          done
+          echo "agents/: no frontmatter, as expected."

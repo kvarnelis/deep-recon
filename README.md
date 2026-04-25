@@ -36,13 +36,21 @@ rounds.
 
 This is deliberate. The orchestrator's role between rounds — digesting the Synthesizer's
 analysis, compiling settled claims, crafting tailored prompts for each agent — is an
-interpretive step that shapes the next round's quality. Agent teams (experimental in Claude
-Code 4.6) offer direct inter-agent messaging, but at the cost of deterministic control
-over round structure and dispatch.
+interpretive step that shapes the next round's quality. Direct inter-agent messaging
+(via agent teams in newer Claude Code releases) erases that interpretive layer.
 
-When agent teams exit experimental status, a hybrid approach — orchestrator-controlled
-rounds with inter-agent dialogue within each round — could improve the Critic↔Explorer
-and Synthesizer→all-agents communication flows.
+If agent teams reach a stable form with deterministic dispatch guarantees, a hybrid is
+plausible: orchestrator-controlled rounds with inter-agent dialogue *within* each round —
+especially Critic↔Explorer for real-time stress-testing, and Synthesizer→all-agents for
+mid-round redirect. Until then, the subagent + orchestrator pattern is the right call.
+
+### A note on the `agents/` directory
+
+The four files in `agents/` are not Claude Code agent definitions (no frontmatter,
+no `subagent_type`). They are **prompt templates** — read at runtime by the orchestrator
+(`SKILL.md`) and inserted into `Task` calls dispatched as `subagent_type:
+"general-purpose"`. This keeps the prompts version-controllable without coupling them to
+Claude Code's agent-definition spec, which has been moving fast.
 
 ## Modes
 
@@ -54,6 +62,7 @@ and Synthesizer→all-agents communication flows.
 | `--focus` | Focus | Convergent — narrows to one argument, ends with action plan |
 | `--vault-only` | Vault-only | Skips web search, uses only vault content |
 | `--pdfs` | PDF collection | Explorer downloads relevant PDFs to `<output_dir>/PDFs/` |
+| `--plain` | Plain markdown | Output is CommonMark-only — no `[[wikilinks]]`, no `> [!callouts]`. Use for non-Obsidian environments. |
 
 ## Installation
 
@@ -120,6 +129,60 @@ The skill produces an Obsidian-native markdown document saved to a `recon/` subd
 - **Process Log** — mode, intention, round count, per-round summaries
 
 Individual agent reports are saved alongside as reference material.
+
+## Troubleshooting
+
+### "I don't see my recon document"
+
+The Synthesizer writes the final document directly to disk — it should appear at `<output_dir>/YYYY-MM-DD-<topic-slug>.md`. If it's missing:
+
+- Check the per-agent reports in the same folder (`r1-explorer.md`, `r1-critic.md`, etc.). If those exist but the final doc doesn't, the Synthesizer write failed mid-flight — re-run the skill with the same topic. Agent reports survive across attempts.
+- If the agent reports also don't exist, the orchestrator failed before any agent dispatched. Confirm `--output` resolves to a writable directory and that the vault root is in scope.
+
+### "Two runs of the same topic produce different outputs"
+
+This is by design. Web search results vary day-to-day, vault state evolves, and model sampling is non-deterministic. The skill is built for divergent exploration, not reproducibility. If you need repeatable runs, use `--vault-only` and treat the agent reports (`rN-*.md`) as the canonical record — those at least come from a fixed input set.
+
+### "An agent timed out, or one round is missing a report"
+
+The orchestrator handles partial-round failures gracefully — see the **Failure Handling** section in `SKILL.md`. The summary:
+
+- **One agent fails:** the round proceeds with N–1 reports. The Process Log notes the failure.
+- **All agents fail in a round:** the orchestrator skips to the final Synthesizer with whatever earlier rounds produced.
+- **Synthesizer's final write fails:** the orchestrator retries, and on a second failure writes a stub document pointing the user at the per-agent reports on disk.
+
+Practical recovery as a user:
+
+- Inspect the recon directory for whatever reports landed.
+- Read the Process Log in the final document — it tells you which rounds and agents failed.
+- Re-run the skill with the same topic if you want a fresh attempt; the orchestrator overwrites per-round files.
+- If web search is the consistent failure, add `--vault-only`.
+
+### "The output sounds generic, not like my voice"
+
+The Synthesizer reads existing notes in your vault to match register. If output feels generic:
+
+- Make sure your vault has notes the Synthesizer can find via Grep on the topic's terms.
+- If you forked this skill, see [`docs/TUNING.md`](docs/TUNING.md) — the Synthesizer references a personal style guide by default and will need adjustment for your voice.
+
+### "The Process Log shows wrong token counts after a context compaction"
+
+The Process Log reads from `_metrics.md`, which is updated after every round expressly to survive context compaction. If the numbers in the final document look off, check `_metrics.md` directly — it's the source of truth. The orchestrator recovers from compaction by re-reading this file.
+
+### "How much does a typical run cost?"
+
+Token spend depends on vault size, web search depth, and whether you run 2 or 3 rounds. Per-round cost data is recorded in `_metrics.md` — review it after a few runs to calibrate. The Synthesizer (Opus) is the highest single-agent contributor in most runs.
+
+If cost matters, you have two levers:
+
+- **Hard cap:** `--budget <tokens>` — the orchestrator aborts gracefully (writing the best-available draft) before exceeding the cap. See SKILL.md's "Budget Check" section.
+- **Cheaper Explorer:** `--explorer-model haiku` is the safest single substitution for cost-sensitive runs. The Synthesizer should remain on Opus — Haiku-on-Synthesizer significantly degrades final-document quality. See SKILL.md's "Agent Model Selection" section for full guidance.
+
+## Documentation
+
+- [`CHANGELOG.md`](CHANGELOG.md) — version history.
+- [`docs/TUNING.md`](docs/TUNING.md) — adjusting the Synthesizer's voice for your fork.
+- [`examples/`](examples/) — sample recon outputs.
 
 ## License
 
